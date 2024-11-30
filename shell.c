@@ -450,6 +450,11 @@ void process_command(char *cmd)
     char *pipe_pos = strchr(cmd, '|');
     char *redir_out = strchr(cmd, '>');
     char *redir_in = strchr(cmd, '<');
+    if (cmd[strlen(cmd) - 1] == '&')
+    {
+        background_command(cmd);
+        return;
+    }
 
     // 파이프 처리
     if (pipe_pos)
