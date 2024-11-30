@@ -15,6 +15,10 @@
 #define MAX_ARGS 100
 
 void execute_command(char *cmd);
+void redirect_output(char *cmd, char *file);
+void redirect_input(char *cmd, char *file);
+void pipe_command(char *cmd1, char *cmd2);
+void process_command(char *cmd);
 
 // 명령어 인자 파싱 함수
 int getargs(char *cmd, char **argv)
@@ -61,10 +65,22 @@ void redirect_output(char *cmd, char *file)
         return;
     }
 
-    dup2(fd, STDOUT_FILENO); // 표준 출력 재지향
-    close(fd);
+    pid_t pid = fork();
+    if (pid == 0)
+    {                            // 자식 프로세스
+        dup2(fd, STDOUT_FILENO); // 표준 출력 재지향
+        close(fd);
 
-    execute_command(cmd); // 재지향된 출력으로 명령어 처리
+        // 명령 실행
+        execute_command(cmd);
+
+        exit(0); // 자식 프로세스 종료
+    }
+    else
+    { // 부모 프로세스
+        close(fd);
+        wait(NULL); // 자식 프로세스가 끝날 때까지 대기
+    }
 }
 
 void redirect_input(char *cmd, char *file)
@@ -76,10 +92,22 @@ void redirect_input(char *cmd, char *file)
         return;
     }
 
-    dup2(fd, STDIN_FILENO); // 표준 입력 재지향
-    close(fd);
+    pid_t pid = fork();
+    if (pid == 0)
+    {                           // 자식 프로세스
+        dup2(fd, STDIN_FILENO); // 표준 입력 재지향
+        close(fd);
 
-    execute_command(cmd); // 재지향된 입력으로 명령어 처리
+        // 명령 실행
+        execute_command(cmd);
+
+        exit(0); // 자식 프로세스 종료
+    }
+    else
+    { // 부모 프로세스
+        close(fd);
+        wait(NULL); // 자식 프로세스가 끝날 때까지 대기
+    }
 }
 
 // 파이프
@@ -419,14 +447,49 @@ void background_command(char *cmd)
 // 명령어 처리 함수
 void process_command(char *cmd)
 {
+    char *pipe_pos = strchr(cmd, '|');
+    char *redir_out = strchr(cmd, '>');
+    char *redir_in = strchr(cmd, '<');
+
+    // 파이프 처리
+    if (pipe_pos)
+    {
+        *pipe_pos = '\0'; // 파이프 앞뒤로 명령어 분리
+        char *cmd1 = cmd;
+        char *cmd2 = pipe_pos + 1;
+        while (*cmd2 == ' ')
+            cmd2++; // 공백 제거
+        pipe_command(cmd1, cmd2);
+        return;
+    }
+
+    // 출력 리다이렉션 처리
+    if (redir_out)
+    {
+        *redir_out = '\0'; // 출력 기호로 명령어 분리
+        char *file = redir_out + 1;
+        while (*file == ' ')
+            file++; // 공백 제거
+        redirect_output(cmd, file);
+        return;
+    }
+
+    // 입력 리다이렉션 처리
+    if (redir_in)
+    {
+        *redir_in = '\0'; // 입력 기호로 명령어 분리
+        char *file = redir_in + 1;
+        while (*file == ' ')
+            file++; // 공백 제거
+        redirect_input(cmd, file);
+        return;
+    }
+
+    // 내부 명령어 처리
     char *args[MAX_ARGS];
     int narg = getargs(cmd, args);
 
-    if (strcmp(args[0], "go") == 0)
-    {
-        go_flag = 1;
-    }
-    else if (strcmp(args[0], "ls") == 0)
+    if (strcmp(args[0], "ls") == 0)
     {
         ls_test();
     }
@@ -494,9 +557,19 @@ void process_command(char *cmd)
             cat_file(args[1]);
         }
     }
+    // 외부 명령어 처리
     else
     {
-        background_command(cmd);
+        pid_t pid = fork();
+        if (pid == 0)
+        { // 자식 프로세스
+            execute_command(cmd);
+            exit(0);
+        }
+        else
+        {               // 부모 프로세스
+            wait(NULL); // 자식 프로세스가 끝날 때까지 대기
+        }
     }
 }
 
@@ -529,6 +602,12 @@ int main()
             printf("입력> ");
             fgets(buf, sizeof(buf), stdin);
             buf[strcspn(buf, "\n")] = '\0';
+
+            if (strcmp(buf, "exit") == 0)
+            {
+                printf("프로그램을 종료합니다.\n");
+                break;
+            }
 
             process_command(buf);
         }
