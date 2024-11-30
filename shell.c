@@ -419,106 +419,80 @@ void background_command(char *cmd)
 // 명령어 처리 함수
 void process_command(char *cmd)
 {
+    char *args[MAX_ARGS];
+    int narg = getargs(cmd, args);
 
-    char *pipe_pos = strchr(cmd, '|');
-    char *redir_out = strchr(cmd, '>');
-    char *redir_in = strchr(cmd, '<');
-
-    if (pipe_pos)
-    {
-        *pipe_pos = '\0';
-        char *cmd1 = cmd;
-        char *cmd2 = pipe_pos + 1;
-        pipe_command(cmd1, cmd2);
-    }
-    else if (redir_out)
-    {
-        *redir_out = '\0';
-        char *file = redir_out + 1;
-        while (*file == ' ')
-            file++; // 공백 제거
-        redirect_output(cmd, file);
-    }
-    else if (redir_in)
-    {
-        *redir_in = '\0';
-        char *file = redir_in + 1;
-        while (*file == ' ')
-            file++; // 공백 제거
-        redirect_input(cmd, file);
-    }
-    else
-    {
-        pid_t pid = fork();
-        if (pid == 0)
-        {
-            execute_command(cmd);
-        }
-        else
-        {
-            wait(NULL);
-        }
-    }
-
-    if (strcmp(cmd, "go") == 0)
+    if (strcmp(args[0], "go") == 0)
     {
         go_flag = 1;
     }
-    else if (strcmp(cmd, "ls") == 0)
+    else if (strcmp(args[0], "ls") == 0)
     {
         ls_test();
     }
-    else if (strcmp(cmd, "pwd") == 0)
+    else if (strcmp(args[0], "pwd") == 0)
     {
         pwd_test();
     }
-    else if (strncmp(cmd, "cd", 2) == 0)
+    else if (strcmp(args[0], "cd") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
         cd_test(narg, args);
     }
-    else if (strncmp(cmd, "mkdir", 5) == 0)
+    else if (strcmp(args[0], "mkdir") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
         mkdir_test(narg, args);
     }
-    else if (strncmp(cmd, "rmdir", 5) == 0)
+    else if (strcmp(args[0], "rmdir") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
         rmdir_test(narg, args);
     }
-    else if (strncmp(cmd, "ln", 2) == 0)
+    else if (strcmp(args[0], "ln") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
         ln_test(narg, args);
     }
-    else if (strncmp(cmd, "cp", 2) == 0)
+    else if (strcmp(args[0], "cp") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
-        cp_file(args[1], args[2]);
+        if (narg < 3)
+        {
+            printf("cp 명령어는 파일 두 개가 필요합니다.\n");
+        }
+        else
+        {
+            cp_file(args[1], args[2]);
+        }
     }
-    else if (strncmp(cmd, "rm", 2) == 0)
+    else if (strcmp(args[0], "rm") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
-        rm_file(args[1]);
+        if (narg < 2)
+        {
+            printf("rm 명령어는 파일명이 필요합니다.\n");
+        }
+        else
+        {
+            rm_file(args[1]);
+        }
     }
-    else if (strncmp(cmd, "mv", 2) == 0)
+    else if (strcmp(args[0], "mv") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
-        mv_file(args[1], args[2]);
+        if (narg < 3)
+        {
+            printf("mv 명령어는 파일 두 개가 필요합니다.\n");
+        }
+        else
+        {
+            mv_file(args[1], args[2]);
+        }
     }
-    else if (strncmp(cmd, "cat", 3) == 0)
+    else if (strcmp(args[0], "cat") == 0)
     {
-        char *args[MAX_ARGS];
-        int narg = getargs(cmd, args);
-        cat_file(args[1]);
+        if (narg < 2)
+        {
+            printf("cat 명령어는 파일명이 필요합니다.\n");
+        }
+        else
+        {
+            cat_file(args[1]);
+        }
     }
     else
     {
@@ -530,8 +504,7 @@ void process_command(char *cmd)
 int main()
 {
     char buf[MAX_CMD_LEN];
-    char *argv[MAX_ARGS];
-    int narg;
+
     struct sigaction sigaction_exit, sigaction_stop;
 
     sigaction_exit.sa_handler = signal_exit;
@@ -556,7 +529,6 @@ int main()
             printf("입력> ");
             fgets(buf, sizeof(buf), stdin);
             buf[strcspn(buf, "\n")] = '\0';
-            narg = getargs(buf, argv);
 
             process_command(buf);
         }
