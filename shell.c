@@ -39,6 +39,54 @@ int getargs(char *cmd, char **argv)
     return narg;
 }
 
+// 백그라운드 실행
+void background_command(char *cmd)
+{
+    char *args[MAX_ARGS];
+    char *token;
+    int i = 0;
+    int background = 0;
+
+    if (cmd[strlen(cmd) - 1] == '&')
+    {
+        background = 1;
+        cmd[strlen(cmd) - 1] = '\0';
+    }
+
+    token = strtok(cmd, " ");
+    while (token != NULL)
+    {
+        args[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    args[i] = NULL;
+
+    pid_t pid = fork();
+    if (pid == 0)
+    {
+        if (execvp(args[0], args) == -1)
+        {
+            perror("execvp 실패");
+            exit(1);
+        }
+    }
+    else if (pid > 0)
+    {
+        if (background)
+        {
+            printf("백그라운드에서 실행 중: PID %d\n", pid);
+        }
+        else
+        {
+            waitpid(pid, NULL, 0);
+        }
+    }
+    else
+    {
+        perror("fork 실패");
+    }
+}
+
 int go_flag = 0;
 
 // SIGINT 시그널 처리
@@ -67,19 +115,18 @@ void redirect_output(char *cmd, char *file)
 
     pid_t pid = fork();
     if (pid == 0)
-    {                            // 자식 프로세스
-        dup2(fd, STDOUT_FILENO); // 표준 출력 재지향
+    {
+        dup2(fd, STDOUT_FILENO);
         close(fd);
 
-        // 명령 실행
         execute_command(cmd);
 
-        exit(0); // 자식 프로세스 종료
+        exit(0);
     }
     else
-    { // 부모 프로세스
+    {
         close(fd);
-        wait(NULL); // 자식 프로세스가 끝날 때까지 대기
+        wait(NULL);
     }
 }
 
@@ -94,19 +141,18 @@ void redirect_input(char *cmd, char *file)
 
     pid_t pid = fork();
     if (pid == 0)
-    {                           // 자식 프로세스
-        dup2(fd, STDIN_FILENO); // 표준 입력 재지향
+    {
+        dup2(fd, STDIN_FILENO);
         close(fd);
 
-        // 명령 실행
         execute_command(cmd);
 
-        exit(0); // 자식 프로세스 종료
+        exit(0);
     }
     else
-    { // 부모 프로세스
+    {
         close(fd);
-        wait(NULL); // 자식 프로세스가 끝날 때까지 대기
+        wait(NULL);
     }
 }
 
@@ -396,54 +442,6 @@ void execute_command(char *cmd)
     exit(1); // 자식 프로세스 종료
 }
 
-// 백그라운드 명령어 처리 함수
-void background_command(char *cmd)
-{
-    char *args[MAX_ARGS];
-    char *token;
-    int i = 0;
-    int background = 0;
-
-    if (cmd[strlen(cmd) - 1] == '&')
-    {
-        background = 1;
-        cmd[strlen(cmd) - 1] = '\0'; // & 제거
-    }
-
-    token = strtok(cmd, " ");
-    while (token != NULL)
-    {
-        args[i++] = token;
-        token = strtok(NULL, " ");
-    }
-    args[i] = NULL;
-
-    pid_t pid = fork();
-    if (pid == 0)
-    {
-        if (execvp(args[0], args) == -1)
-        {
-            perror("execvp 실패");
-            exit(1);
-        }
-    }
-    else if (pid > 0)
-    {
-        if (background)
-        {
-            printf("백그라운드에서 실행 중: PID %d\n", pid);
-        }
-        else
-        {
-            waitpid(pid, NULL, 0);
-        }
-    }
-    else
-    {
-        perror("fork 실패");
-    }
-}
-
 // 명령어 처리 함수
 void process_command(char *cmd)
 {
@@ -459,11 +457,11 @@ void process_command(char *cmd)
     // 파이프 처리
     if (pipe_pos)
     {
-        *pipe_pos = '\0'; // 파이프 앞뒤로 명령어 분리
+        *pipe_pos = '\0';
         char *cmd1 = cmd;
         char *cmd2 = pipe_pos + 1;
         while (*cmd2 == ' ')
-            cmd2++; // 공백 제거
+            cmd2++;
         pipe_command(cmd1, cmd2);
         return;
     }
@@ -471,10 +469,10 @@ void process_command(char *cmd)
     // 출력 리다이렉션 처리
     if (redir_out)
     {
-        *redir_out = '\0'; // 출력 기호로 명령어 분리
+        *redir_out = '\0';
         char *file = redir_out + 1;
         while (*file == ' ')
-            file++; // 공백 제거
+            file++;
         redirect_output(cmd, file);
         return;
     }
@@ -482,10 +480,10 @@ void process_command(char *cmd)
     // 입력 리다이렉션 처리
     if (redir_in)
     {
-        *redir_in = '\0'; // 입력 기호로 명령어 분리
+        *redir_in = '\0';
         char *file = redir_in + 1;
         while (*file == ' ')
-            file++; // 공백 제거
+            file++;
         redirect_input(cmd, file);
         return;
     }
@@ -493,6 +491,11 @@ void process_command(char *cmd)
     // 내부 명령어 처리
     char *args[MAX_ARGS];
     int narg = getargs(cmd, args);
+    if (strcmp(args[0], "go") == 0)
+    {
+        go_flag = 1;
+        return;
+    }
 
     if (strcmp(args[0], "ls") == 0)
     {
@@ -562,7 +565,7 @@ void process_command(char *cmd)
             cat_file(args[1]);
         }
     }
-    // 외부 명령어 처리
+
     else
     {
         pid_t pid = fork();
@@ -572,8 +575,8 @@ void process_command(char *cmd)
             exit(0);
         }
         else
-        {               // 부모 프로세스
-            wait(NULL); // 자식 프로세스가 끝날 때까지 대기
+        {
+            wait(NULL);
         }
     }
 }
